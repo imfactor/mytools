@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>WebM Alpha Inspector Pro</title>
+    <style>
+        :root { --video-width: 400px; --grid-size: 20px; --bg-color: #00ff00; }
+        body { background-color: var(--bg-color); margin: 0; font-family: -apple-system, sans-serif; transition: background 0.2s; min-height: 100vh; }
+        
+        /* 1~6번 기능을 담은 상단 메뉴 */
+        .header { 
+            position: sticky; top: 0; background: #1a1a1a; color: white; 
+            padding: 12px 20px; z-index: 1000; display: flex; flex-wrap: wrap; 
+            gap: 15px; align-items: center; border-bottom: 1px solid #333; box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        }
+
+        .control-unit { display: flex; align-items: center; gap: 8px; padding-right: 15px; border-right: 1px solid #333; height: 30px; }
+        .control-unit:last-child { border-right: none; }
+        label { font-size: 12px; font-weight: bold; color: #aaa; }
+
+        /* 그리드 및 배경 설정 */
+        .grid-overlay {
+            background-image: 
+                linear-gradient(45deg, rgba(0,0,0,0.1) 25%, transparent 25%, transparent 75%, rgba(0,0,0,0.1) 75%), 
+                linear-gradient(45deg, rgba(0,0,0,0.1) 25%, transparent 25%, transparent 75%, rgba(0,0,0,0.1) 75%);
+            background-size: var(--grid-size) var(--grid-size);
+            background-position: 0 0, calc(var(--grid-size)/2) calc(var(--grid-size)/2);
+        }
+        .grid-off { background-image: none !important; }
+
+        /* 영상 카드 섹션 */
+        .main-display { display: flex; flex-wrap: wrap; justify-content: center; gap: 20px; padding: 25px; }
+        .card { background: rgba(0,0,0,0.3); border-radius: 10px; padding: 12px; width: var(--video-width); backdrop-filter: blur(5px); }
+        
+        .video-wrapper { position: relative; width: 100%; border-radius: 6px; overflow: hidden; background-color: transparent; }
+        video { width: 100%; display: block; transition: filter 0.2s; }
+
+        /* 5번: 필터 옵션 */
+        .filter-mono { filter: grayscale(1) contrast(3); }
+        .filter-invert { filter: invert(1); }
+        .filter-edge { filter: contrast(5) brightness(0.5) saturate(0); }
+
+        .file-info { color: #fff; margin-top: 10px; font-size: 12px; text-align: center; opacity: 0.8; }
+        
+        /* UI 요소 */
+        select, button, input[type="color"] { background: #333; color: white; border: 1px solid #555; padding: 4px 8px; border-radius: 4px; cursor: pointer; }
+        button:active { background: #555; }
+        input[type="range"] { width: 80px; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <div class="control-unit">
+        <label>FILES</label>
+        <input type="file" id="fileInput" multiple accept="video/webm">
+    </div>
+
+    <div class="control-unit">
+        <label>SIZE</label>
+        <input type="range" min="200" max="1200" value="400" oninput="document.documentElement.style.setProperty('--video-width', this.value+'px')">
+    </div>
+
+    <div class="control-unit">
+        <label>GRID</label>
+        <input type="checkbox" id="gridToggle" checked onchange="toggleGrid()">
+        <input type="range" min="5" max="60" value="20" oninput="document.documentElement.style.setProperty('--grid-size', this.value+'px')">
+    </div>
+
+    <div class="control-unit">
+        <label>BG COLOR</label>
+        <input type="color" value="#00ff00" oninput="changeBg(this.value)">
+        <select onchange="changeBg(this.value)">
+            <option value="#00ff00">Green Screen</option>
+            <option value="#ff00ff">Magenta</option>
+            <option value="#ffffff">Pure White</option>
+            <option value="#000000">Pure Black</option>
+            <option value="#333333">Dark Gray</option>
+        </select>
+    </div>
+
+    <div class="control-unit">
+        <label>FILTER</label>
+        <select onchange="applyGlobalFilter(this.value)">
+            <option value="">None (Normal)</option>
+            <option value="filter-mono">High Contrast (Alpha Check)</option>
+            <option value="filter-invert">Invert Colors</option>
+            <option value="filter-edge">Edge Focus</option>
+        </select>
+    </div>
+</div>
+
+<div class="main-display" id="videoGrid">
+    <div style="color:rgba(255,255,255,0.5); margin-top:100px; text-align:center;">
+        <h3>WebM 파일을 선택해주세요.</h3>
+        <p>격자, 필터, 배경색을 조합해 투명도를 정밀하게 확인할 수 있습니다.</p>
+    </div>
+</div>
+
+<script>
+    const fileInput = document.getElementById('fileInput');
+    const videoGrid = document.getElementById('videoGrid');
+    const gridToggle = document.getElementById('gridToggle');
+    let currentFilter = '';
+
+    function changeBg(color) {
+        document.body.style.backgroundColor = color;
+    }
+
+    function toggleGrid() {
+        const wrappers = document.querySelectorAll('.video-wrapper');
+        wrappers.forEach(w => {
+            gridToggle.checked ? w.classList.add('grid-overlay') : w.classList.remove('grid-overlay');
+        });
+    }
+
+    function applyGlobalFilter(filterClass) {
+        currentFilter = filterClass;
+        document.querySelectorAll('video').forEach(v => {
+            v.className = filterClass;
+        });
+    }
+
+    // 3. 배속은 각 동영상별로 컨트롤 (생성 시 적용)
+    fileInput.addEventListener('change', function(e) {
+        videoGrid.innerHTML = '';
+        for (let file of e.target.files) {
+            const url = URL.createObjectURL(file);
+            const card = document.createElement('div');
+            card.className = 'card';
+            
+            // 개별 배속 컨트롤을 포함한 HTML 구조
+            card.innerHTML = `
+                <div class="video-wrapper ${gridToggle.checked ? 'grid-overlay' : ''}">
+                    <video src="${url}" controls loop muted class="${currentFilter}"></video>
+                </div>
+                <div class="file-info">
+                    <div style="margin-bottom:5px;">${file.name}</div>
+                    <label style="font-size:10px;">SPEED: </label>
+                    <select onchange="this.closest('.card').querySelector('video').playbackRate = this.value" style="font-size:11px; padding:2px;">
+                        <option value="0.25">0.25x</option>
+                        <option value="0.5">0.5x</option>
+                        <option value="1" selected>1.0x</option>
+                        <option value="1.5">1.5x</option>
+                        <option value="2">2.0x</option>
+                    </select>
+                </div>
+            `;
+            videoGrid.appendChild(card);
+        }
+    });
+</script>
+
+</body>
+</html>

@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>XML(.dat) to Excel Flattening Converter</title>
+    <script src="https://cdn.sheetjs.com/xlsx-0.19.3/package/dist/xlsx.full.min.js"></script>
+    <style>
+        body { font-family: 'Pretendard', sans-serif; padding: 20px; background: #f0f4f8; color: #334e68; }
+        .container { max-width: 900px; margin: 0 auto; background: white; padding: 35px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); }
+        .header { text-align: center; margin-bottom: 30px; }
+        .drop-zone { 
+            border: 3px dashed #102a43; padding: 50px 20px; text-align: center; 
+            color: #102a43; font-size: 1.1rem; cursor: pointer; border-radius: 12px;
+            background: #f0f4f8; transition: 0.2s;
+        }
+        .drop-zone.drag-over { background: #d9e2ec; border-color: #334e68; transform: translateY(-2px); }
+        #pathSelector { margin: 25px 0; display: none; }
+        select { width: 100%; padding: 12px; border: 2px solid #102a43; border-radius: 8px; font-size: 1rem; }
+        .btn-excel { 
+            width: 100%; padding: 18px; background: #48bb78; color: white; border: none; 
+            border-radius: 10px; font-size: 1.2rem; cursor: pointer; font-weight: bold;
+        }
+        .btn-excel:hover { background: #38a169; }
+        .btn-excel:disabled { background: #cbd5e0; cursor: not-allowed; }
+        .status-msg { margin-top: 15px; font-size: 0.9rem; color: #627d98; text-align: center; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <h2>📂 XML(.dat) 완전 평탄화 변환기</h2>
+        <p>XML 형식의 .dat 파일을 분석하여 모든 계층을 엑셀 셀로 분리합니다.</p>
+    </div>
+
+    <div class="drop-zone" id="dropZone">
+        .dat(XML) 파일을 여기로 드래그하거나 클릭하세요.
+        <input type="file" id="fileInput" accept=".dat,.xml" style="display: none;">
+    </div>
+
+    <div id="pathSelector">
+        <label><strong>반복되는 데이터 단위(행) 선택:</strong></label>
+        <select id="pathSelect"></select>
+    </div>
+
+    <div id="statusBox" class="status-msg">파일을 대기 중입니다...</div>
+
+    <button id="downloadBtn" class="btn-excel" disabled>Excel 파일 생성 및 다운로드</button>
+</div>
+
+<script>
+    const fileInput = document.getElementById('fileInput');
+    const dropZone = document.getElementById('dropZone');
+    const pathSelect = document.getElementById('pathSelect');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const statusBox = document.getElementById('statusBox');
+
+    let allGroups = [];
+
+    dropZone.onclick = () => fileInput.click();
+    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+    dropZone.addEventListener('dragleave', () => { dropZone.classList.remove('drag-over'); });
+    dropZone.addEventListener('drop', (e) => { e.preventDefault(); dropZone.classList.remove('drag-over'); handleFile(e.dataTransfer.files[0]); });
+    fileInput.addEventListener('change', (e) => { if (e.target.files[0]) handleFile(e.target.files[0]); });
+
+    function handleFile(file) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const parser = new DOMParser();
+                const xmlDoc = parser.parseFromString(e.target.result, "text/xml");
+                
+                if (xmlDoc.getElementsByTagName("parsererror").length > 0) {
+                    throw new Error("XML 파싱 에러");
+                }
+                
+                analyzeXml(xmlDoc.documentElement);
+                statusBox.innerText = `로드 완료: ${file.name}`;
+            } catch (err) {
+                alert("파일을 분석할 수 없습니다. 올바른 XML 형식이 맞는지 확인해주세요.");
+            }
+        };
+        reader.readAsText(file);
+    }
+
+    // XML 구조에서 반복되는 태그 그룹을 찾는 함수
+    function analyzeXml(root) {
+        const tagCounts = {};
+        const groups = {};
+
+        function traverse(node, path) {
+            if (node.nodeType !== 1) return;
+            const currentPath = path ? `${path}:${node.nodeName}` : node.nodeName;
+            
+            if (!groups[currentPath]) groups[currentPath] = [];
+            groups[currentPath].push(node);
+
+            for (let child of node.children) {
+                traverse(child, currentPath);
+            }
+        }
+
+        traverse(root, "");
+
+        // 2개 이상 반복되는 태그만 후보로 추출
+        allGroups = Object.keys(groups)
+            .filter(path => groups[path].length > 1)
+            .map(path => ({ path, nodes: groups[path] }));
+
+        if (allGroups.length > 0) {
+            document.getElementById('pathSelector').style.display = 'block';
+            pathSelect.innerHTML = allGroups.map((g, idx) => 
+                `<option value="${idx}">${g.path} (행 개수: ${g.nodes.length}개)</option>`
+            ).join('');
+            
+            // 가장 데이터가 많은 그룹 자동 선택
+            const maxIdx = allGroups.reduce((best, curr, idx, arr) => curr.nodes.length > arr[best].nodes.length ? idx : best, 0);
+            pathSelect.value = maxIdx;
+            downloadBtn.disabled = false;
+        } else {
+            alert("행(Row)으로 변환할 반복적인 XML 태그를 찾지 못했습니다.");
+        }
+    }
+
+    downloadBtn.addEventListener('click', () => {
+        const targetNodes = allGroups[pathSelect.value].nodes;
+        
+        const flattenedData = targetNodes.map(node => {
+            const result = {};
+            
+            function flatten(currNode, prefix) {
+                // 1. 속성(Attributes) 처리
+                if (currNode.attributes) {
+                    for (let attr of currNode.attributes) {
+                        result[`${prefix}@${attr.name}`] = attr.value;
+                    }
+                }
+
+                // 2. 자식 노드 처리
+                if (currNode.children.length > 0) {
+                    const childCounts = {};
+                    for (let child of currNode.children) {
+                        const tagName = child.nodeName;
+                        childCounts[tagName] = (childCounts[tagName] || 0) + 1;
+                        
+                        // 같은 이름의 태그가 여러 개면 인덱스 추가 (예: 아이템:0, 아이템:1)
+                        const subPrefix = currNode.querySelectorAll(`:scope > ${tagName}`).length > 1 
+                            ? `${prefix}:${tagName}:${childCounts[tagName] - 1}` 
+                            : `${prefix}:${tagName}`;
+                        
+                        flatten(child, subPrefix);
+                    }
+                } else {
+                    // 자식이 없는 경우 텍스트 값 저장
+                    const val = currNode.textContent.trim();
+                    if (val) result[prefix] = val;
+                }
+            }
+
+            flatten(node, ""); // 선택된 태그 기준 상대 경로
+            return result;
+        });
+
+        const worksheet = XLSX.utils.json_to_sheet(flattenedData);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "XML_Export");
+        XLSX.writeFile(workbook, `xml_flattened_${new Date().getTime()}.xlsx`);
+    });
+</script>
+
+</body>
+</html>

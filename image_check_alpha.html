@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PNG Transparency Checker</title>
+    <style>
+        :root {
+            --panel-bg: #2c2c2c;
+            --text-color: #e0e0e0;
+        }
+        body {
+            margin: 0;
+            display: flex;
+            height: 100vh;
+            background-color: #1a1a1a;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: var(--text-color);
+            overflow: hidden;
+        }
+        /* 좌측 컨트롤 패널 */
+        #sidebar {
+            width: 320px;
+            background-color: var(--panel-bg);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.5);
+            z-index: 10;
+        }
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        label { font-size: 0.9rem; font-weight: bold; }
+        input[type="range"], input[type="color"], input[type="file"] {
+            width: 100%;
+            cursor: pointer;
+        }
+        .btn-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 5px;
+        }
+        button {
+            padding: 8px;
+            border: none;
+            border-radius: 4px;
+            background: #444;
+            color: white;
+            cursor: pointer;
+        }
+        button:hover { background: #555; }
+        button.active { background: #007bff; }
+
+        /* 우측 뷰어 영역 */
+        #viewer {
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-wrap: wrap;
+            align-content: flex-start;
+            padding: 20px;
+            gap: 20px;
+            transition: background 0.3s;
+            /* 기본 격자 배경 (투명도 확인용) */
+            background-image: linear-gradient(45deg, #ccc 25%, transparent 25%), 
+                              linear-gradient(-45deg, #ccc 25%, transparent 25%), 
+                              linear-gradient(45deg, transparent 75%, #ccc 75%), 
+                              linear-gradient(-45deg, transparent 75%, #ccc 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+        }
+
+        /* 이미지 카드 스타일 */
+        .img-card {
+            background: rgba(0,0,0,0.2);
+            border-radius: 8px;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            border: 1px solid #444;
+        }
+        .img-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 10px;
+        }
+        img {
+            max-width: 100%;
+            height: auto;
+            object-fit: contain;
+        }
+        .img-info {
+            font-size: 11px;
+            color: #aaa;
+            text-align: center;
+            word-break: break-all;
+        }
+    </style>
+</head>
+<body>
+
+<div id="sidebar">
+    <h2>PNG Checker</h2>
+    
+    <div class="control-group">
+        <label>1. 이미지 파일 불러오기</label>
+        <input type="file" id="fileInput" accept="image/png" multiple>
+    </div>
+
+    <div class="control-group">
+        <label>2. 이미지 크기 조절 (<span id="sizeVal">300</span>px)</label>
+        <input type="range" id="sizeRange" min="50" max="800" value="300">
+    </div>
+
+    <div class="control-group">
+        <label>3. 배경 모드 선택</label>
+        <div class="btn-group">
+            <button onclick="setBg('grid')" id="btnGrid" class="active">격자(투명)</button>
+            <button onclick="setBg('white')">White</button>
+            <button onclick="setBg('black')">Black</button>
+            <button onclick="setBg('custom')">Custom</button>
+        </div>
+        <input type="color" id="colorPicker" value="#ff0000" style="display:none">
+    </div>
+
+    <div class="control-group" style="margin-top: auto;">
+        <button onclick="clearAll()" style="background:#822;">리스트 초기화</button>
+    </div>
+</div>
+
+<div id="viewer" id="bgLayer"></div>
+
+<script>
+    const fileInput = document.getElementById('fileInput');
+    const viewer = document.getElementById('viewer');
+    const sizeRange = document.getElementById('sizeRange');
+    const sizeVal = document.getElementById('sizeVal');
+    const colorPicker = document.getElementById('colorPicker');
+
+    // 1. 파일 로드 로직
+    fileInput.addEventListener('change', (e) => {
+        const files = e.target.files;
+        for (let file of files) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                createImageCard(event.target.result, file.name);
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+
+    // 2. 이미지 카드 생성
+    function createImageCard(src, name) {
+        const card = document.createElement('div');
+        card.className = 'img-card';
+        card.style.width = sizeRange.value + 'px';
+
+        const container = document.createElement('div');
+        container.className = 'img-container';
+        
+        const img = new Image();
+        img.src = src;
+        
+        img.onload = function() {
+            const info = document.createElement('div');
+            info.className = 'img-info';
+            info.innerHTML = `<strong>${name}</strong><br>${img.naturalWidth} x ${img.naturalHeight}`;
+            
+            container.appendChild(img);
+            card.appendChild(container);
+            card.appendChild(info);
+            viewer.appendChild(card);
+        };
+    }
+
+    // 3. 사이즈 조절 실시간 반영
+    sizeRange.addEventListener('input', (e) => {
+        const val = e.target.value;
+        sizeVal.innerText = val;
+        document.querySelectorAll('.img-card').forEach(card => {
+            card.style.width = val + 'px';
+        });
+    });
+
+    // 4. 배경 변경 로직
+    function setBg(type) {
+        // 버튼 활성화 표시
+        document.querySelectorAll('.btn-group button').forEach(btn => btn.classList.remove('active'));
+        event.target.classList.add('active');
+
+        colorPicker.style.display = (type === 'custom') ? 'block' : 'none';
+
+        if (type === 'grid') {
+            viewer.style.background = ""; // CSS 기본 격자 배경 적용
+            viewer.style.backgroundColor = "";
+        } else if (type === 'white') {
+            viewer.style.background = "white";
+        } else if (type === 'black') {
+            viewer.style.background = "black";
+        } else if (type === 'custom') {
+            viewer.style.background = colorPicker.value;
+        }
+    }
+
+    colorPicker.addEventListener('input', (e) => {
+        viewer.style.background = e.target.value;
+    });
+
+    function clearAll() {
+        viewer.innerHTML = '';
+        fileInput.value = '';
+    }
+</script>
+
+</body>
+</html>

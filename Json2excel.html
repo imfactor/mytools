@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>JSON to Excel - Deep Flattening</title>
+    <script src="https://cdn.sheetjs.com/xlsx-0.19.3/package/dist/xlsx.full.min.js"></script>
+    <style>
+        body { font-family: 'Pretendard', sans-serif; padding: 20px; background: #f4f7f9; color: #2c3e50; }
+        .container { max-width: 900px; margin: 0 auto; background: white; padding: 35px; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.06); }
+        .drop-zone { 
+            border: 3px dashed #3498db; padding: 50px 20px; text-align: center; 
+            color: #3498db; font-size: 1.1rem; cursor: pointer; border-radius: 12px;
+            background: #fdfdfd; transition: 0.2s;
+        }
+        .drop-zone.drag-over { background: #eef7ff; border-color: #2980b9; transform: translateY(-2px); }
+        #pathSelector { margin: 25px 0; display: none; }
+        select { width: 100%; padding: 12px; border: 2px solid #3498db; border-radius: 8px; font-size: 1rem; }
+        .btn-excel { 
+            width: 100%; padding: 18px; background: #27ae60; color: white; border: none; 
+            border-radius: 10px; font-size: 1.2rem; cursor: pointer; font-weight: bold;
+        }
+        .btn-excel:hover { background: #219150; }
+        .btn-excel:disabled { background: #bdc3c7; cursor: not-allowed; }
+        .status-msg { margin-top: 15px; font-size: 0.9rem; color: #7f8c8d; text-align: center; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2 style="text-align: center;">💎 JSON 완전 평탄화 변환기</h2>
+    <p style="text-align: center; color: #7f8c8d; margin-bottom: 30px;">모든 계층 데이터를 개별 셀로 분리하여 엑셀로 변환합니다.</p>
+
+    <div class="drop-zone" id="dropZone">
+        여기에 JSON 파일을 드롭하거나 클릭하여 선택하세요.
+        <input type="file" id="fileInput" accept=".json" style="display: none;">
+    </div>
+
+    <div id="pathSelector">
+        <label><strong>데이터 본문 위치 선택:</strong></label>
+        <select id="pathSelect"></select>
+    </div>
+
+    <div id="statusBox" class="status-msg">파일을 대기 중입니다...</div>
+
+    <button id="downloadBtn" class="btn-excel" disabled>Excel 파일 생성 및 다운로드</button>
+</div>
+
+<script>
+    const fileInput = document.getElementById('fileInput');
+    const dropZone = document.getElementById('dropZone');
+    const pathSelect = document.getElementById('pathSelect');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const statusBox = document.getElementById('statusBox');
+
+    let allArrays = [];
+
+    // --- 이벤트 리스너 ---
+    dropZone.onclick = () => fileInput.click();
+    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+    dropZone.addEventListener('dragleave', () => { dropZone.classList.remove('drag-over'); });
+    dropZone.addEventListener('drop', (e) => { e.preventDefault(); dropZone.classList.remove('drag-over'); handleFile(e.dataTransfer.files[0]); });
+    fileInput.addEventListener('change', (e) => { if (e.target.files[0]) handleFile(e.target.files[0]); });
+
+    function handleFile(file) {
+        if (!file.name.toLowerCase().endsWith('.json')) return alert("JSON 파일만 선택해주세요.");
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const json = JSON.parse(e.target.result);
+                analyzeJson(json);
+                statusBox.innerText = `성공적으로 로드됨: ${file.name}`;
+            } catch (err) { alert("JSON 파싱 오류입니다."); }
+        };
+        reader.readAsText(file);
+    }
+
+    // --- 계층 구조 분석 ---
+    function analyzeJson(obj) {
+        allArrays = [];
+        function findArrays(curr, path = "Root") {
+            if (Array.isArray(curr)) {
+                allArrays.push({ path, data: curr });
+            } else if (curr && typeof curr === 'object') {
+                for (let key in curr) {
+                    findArrays(curr[key], path === "Root" ? key : `${path}:${key}`);
+                }
+            }
+        }
+        findArrays(obj);
+
+        if (allArrays.length > 0) {
+            document.getElementById('pathSelector').style.display = 'block';
+            pathSelect.innerHTML = allArrays.map((item, idx) => 
+                `<option value="${idx}">${item.path} (${item.data.length}개 항목)</option>`
+            ).join('');
+            
+            const maxIdx = allArrays.reduce((best, curr, idx, arr) => curr.data.length > arr[best].data.length ? idx : best, 0);
+            pathSelect.value = maxIdx;
+            downloadBtn.disabled = false;
+        }
+    }
+
+    // --- 엑셀 다운로드 ---
+    downloadBtn.addEventListener('click', () => {
+        const targetData = allArrays[pathSelect.value].data;
+        
+        // 데이터 완전 평탄화
+        const flattened = targetData.map(item => deepFlatten(item));
+
+        const worksheet = XLSX.utils.json_to_sheet(flattened);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Sheet1");
+        XLSX.writeFile(workbook, `full_flattened_${new Date().getTime()}.xlsx`);
+    });
+
+    /**
+     * 핵심 로직: 객체뿐만 아니라 배열까지 모두 열로 쪼개는 함수
+     * 구분자(:)를 사용하여 상위:하위 경로 생성
+     */
+    function deepFlatten(data) {
+        const result = {};
+
+        function recurse(curr, prop) {
+            if (Object(curr) !== curr) {
+                // 최하위 값(문자열, 숫자 등)인 경우 결과에 추가
+                result[prop] = curr;
+            } else if (Array.isArray(curr)) {
+                // 배열인 경우 인덱스를 포함하여 재귀 호출
+                if (curr.length === 0) {
+                    result[prop] = "[]";
+                } else {
+                    for (let i = 0; i < curr.length; i++) {
+                        recurse(curr[i], prop ? `${prop}:${i}` : `${i}`);
+                    }
+                }
+            } else {
+                // 객체인 경우 키를 포함하여 재귀 호출
+                let isEmpty = true;
+                for (let p in curr) {
+                    isEmpty = false;
+                    recurse(curr[p], prop ? `${prop}:${p}` : p);
+                }
+                if (isEmpty && prop) result[prop] = "{}";
+            }
+        }
+
+        recurse(data, "");
+        return result;
+    }
+</script>
+
+</body>
+</html>
