@@ -30,6 +30,15 @@
         .profile p { font-size: 0.85rem; opacity: 0.7; }
 
         .menu-list { flex: 1; overflow-y: auto; padding: 20px 10px; }
+	.menu-list {
+    	flex: 1; 
+    	overflow-y: auto; 
+    	padding: 20px 10px;
+    
+    	/* 추가되는 핵심 코드 */
+    	display: flex;
+    	flex-direction: column;
+	}
         .menu-item {
             width: 100%;
             padding: 12px 15px;
@@ -66,12 +75,16 @@
         <p>by HJ</p>
     </div>
     <div class="menu-list" id="menu">
-        <button class="menu-item active" onclick="loadPage(this, 'image_check_alpha.html')">🖼️ 이미지(png) 알파체크</button>
+        <button class="menu-item" onclick="loadPage(this, 'image_check_alpha.html')">🖼️ 이미지(png) 알파체크</button>
         <button class="menu-item" onclick="loadPage(this, 'webm_alpha-check.html')">🎞️ 동영상(webm) 알파체크</button>
         <button class="menu-item" onclick="loadPage(this, 'Json2excel.html')">📊 Json to excel</button>
         <button class="menu-item" onclick="loadPage(this, 'xml2excel.html')">📄 xml to excel</button>
         <button class="menu-item" onclick="loadPage(this, 'excel_comparison4.html')">🗳️ 엑셀 문서 차이점 비교</button>
-        <button class="menu-item active" onclick="loadPage(this, 'home.html')">가이드</button>
+        
+        <button class="menu-item active" id="default-menu" onclick="loadPage(this, 'home.html')" 
+                style="justify-content: center; font-weight: bold; border: 1px dashed var(--accent-color); margin-top: auto; margin-bottom: 10px;">
+            🏠 가이드
+        </button>
     </div>
 </nav>
 
