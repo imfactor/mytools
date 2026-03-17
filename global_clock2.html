@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Global Timezone Manager Pro</title>
+    <style>
+        :root { --primary: #4f46e5; --bg: #f1f5f9; --card: #ffffff; }
+        body { font-family: 'Pretendard', -apple-system, sans-serif; background: var(--bg); color: #1e293b; padding: 20px; margin: 0; }
+        .container { max-width: 1100px; margin: 0 auto; }
+        
+        /* 헤더 및 설정 */
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .add-bar { background: var(--card); padding: 20px; border-radius: 12px; display: grid; grid-template-columns: 2fr 1fr auto; gap: 10px; margin-bottom: 30px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+        
+        select, input { padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.95rem; }
+        .btn-add { background: var(--primary); color: white; border: none; padding: 0 25px; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        .btn-add:hover { background: #4338ca; }
+
+        /* 그리드 UI (가로 쌓임) */
+        .clock-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px; }
+        
+        .clock-card { background: var(--card); border-radius: 16px; padding: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; position: relative; transition: transform 0.2s; }
+        .clock-card:hover { transform: translateY(-4px); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
+        
+        .card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px; }
+        .city-info h4 { margin: 0; font-size: 1.25rem; color: #0f172a; }
+        .city-info span { font-size: 0.8rem; color: #64748b; font-family: monospace; }
+        
+        .time-area { text-align: center; padding: 15px 0; border-top: 1px dashed #e2e8f0; border-bottom: 1px dashed #e2e8f0; }
+        .time-main { font-size: 2.2rem; font-weight: 700; color: var(--primary); font-family: 'JetBrains Mono', 'Courier New', monospace; letter-spacing: -1px; }
+        .date-sub { font-size: 0.9rem; color: #64748b; margin-top: 5px; }
+
+        .card-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 15px; }
+        .dst-control { font-size: 0.75rem; display: flex; align-items: center; gap: 5px; cursor: pointer; color: #475569; }
+        .btn-del { background: #f1f5f9; color: #94a3b8; border: none; padding: 5px 10px; border-radius: 6px; cursor: pointer; }
+        .btn-del:hover { background: #fee2e2; color: #ef4444; }
+
+        .tag { padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: bold; }
+        .tag-dst { background: #fef3c7; color: #92400e; }
+        .tag-std { background: #e2e8f0; color: #475569; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <h2>🌍 글로벌 타임 매니저</h2>
+        <div id="local-clock" style="font-weight: 600; color: #64748b;"></div>
+    </div>
+
+    <div class="add-bar">
+        <select id="tz-select">
+            <optgroup label="Oceania / Pacific">
+                <option value="Pacific/Kiritimati">키리티마티 (GMT+14)</option>
+                <option value="Pacific/Auckland">오클랜드 (GMT+13)</option>
+                <option value="Australia/Sydney">시드니 (GMT+11)</option>
+            </optgroup>
+            <optgroup label="Asia">
+                <option value="Asia/Seoul" selected>서울/도쿄 (GMT+9)</option>
+                <option value="Asia/Shanghai">베이징/상하이 (GMT+8)</option>
+                <option value="Asia/Bangkok">방콕/자카르타 (GMT+7)</option>
+                <option value="Asia/Dhaka">다카 (GMT+6)</option>
+                <option value="Asia/Kolkata">뉴델리 (GMT+5:30)</option>
+                <option value="Asia/Dubai">두바이 (GMT+4)</option>
+                <option value="Asia/Riyadh">리야드 (GMT+3)</option>
+            </optgroup>
+            <optgroup label="Europe / Africa">
+                <option value="Europe/Moscow">모스크바 (GMT+3)</option>
+                <option value="Europe/Paris">파리/베를린 (GMT+1)</option>
+                <option value="Europe/London">런던 (GMT+0)</option>
+                <option value="Africa/Lagos">라고스 (GMT+1)</option>
+                <option value="Africa/Cairo">카이로 (GMT+2)</option>
+            </optgroup>
+            <optgroup label="Americas">
+                <option value="America/Sao_Paulo">상파울루 (GMT-3)</option>
+                <option value="America/New_York">뉴욕/EDT (GMT-5)</option>
+                <option value="America/Chicago">시카고 (GMT-6)</option>
+                <option value="America/Denver">덴버 (GMT-7)</option>
+                <option value="America/Los_Angeles">LA/PST (GMT-8)</option>
+                <option value="America/Anchorage">알래스카 (GMT-9)</option>
+                <option value="Pacific/Honolulu">하와이 (GMT-10)</option>
+                <option value="Pacific/Pago_Pago">사모아 (GMT-11)</option>
+            </optgroup>
+        </select>
+        <input type="text" id="tz-label" placeholder="별칭 (예: 지사)">
+        <button class="btn-add" onclick="addClock()">추가</button>
+    </div>
+
+    <div id="clock-grid" class="clock-grid"></div>
+</div>
+
+<script>
+    // 로컬 스토리지 연동 및 초기 데이터
+    let myClocks = JSON.parse(localStorage.getItem('myWorldClocks')) || [
+        { zone: 'Asia/Seoul', label: '본사', forceStd: false },
+        { zone: 'America/New_York', label: 'NY Office', forceStd: false }
+    ];
+
+    function save() { localStorage.setItem('myWorldClocks', JSON.stringify(myClocks)); }
+
+    function addClock() {
+        const zone = document.getElementById('tz-select').value;
+        const label = document.getElementById('tz-label').value || zone.split('/').pop().replace('_', ' ');
+        myClocks.push({ zone, label, forceStd: false });
+        document.getElementById('tz-label').value = '';
+        save();
+        render();
+    }
+
+    function removeClock(i) { myClocks.splice(i, 1); save(); render(); }
+
+    function toggleDst(i) {
+        myClocks[i].forceStd = !myClocks[i].forceStd;
+        save();
+        render();
+    }
+
+    function render() {
+        const grid = document.getElementById('clock-grid');
+        grid.innerHTML = '';
+        
+        myClocks.forEach((item, i) => {
+            const now = new Date();
+            
+            // 1. 해당 타임존의 현재 DST 적용 여부 확인
+            const dtf = new Intl.DateTimeFormat('en-US', { timeZone: item.zone, timeZoneName: 'long' });
+            const isCurrentlyDST = dtf.formatToParts(now).find(p => p.type === 'timeZoneName').value.includes('Daylight');
+
+            // 2. 시간 계산 로직
+            let options = { 
+                timeZone: item.zone, 
+                hour12: false, 
+                hour: '2-digit', minute: '2-digit', second: '2-digit' 
+            };
+
+            let timeString;
+            let displayDstTag = isCurrentlyDST;
+
+            if (item.forceStd && isCurrentlyDST) {
+                // 서머타임 강제 해제 모드: 현재 시간에서 1시간을 뺌
+                const tzDate = new Date(now.toLocaleString('en-US', { timeZone: item.zone }));
+                tzDate.setHours(tzDate.getHours() - 1);
+                timeString = tzDate.toTimeString().split(' ')[0];
+                displayDstTag = false; // 표준시로 표시
+            } else {
+                timeString = now.toLocaleTimeString('en-US', options);
+            }
+
+            const dateString = now.toLocaleDateString('ko-KR', { timeZone: item.zone, month: 'short', day: 'numeric', weekday: 'short' });
+
+            const card = document.createElement('div');
+            card.className = 'clock-card';
+            card.innerHTML = `
+                <div class="card-header">
+                    <div class="city-info">
+                        <h4>${item.label}</h4>
+                        <span>${item.zone}</span>
+                    </div>
+                    <span class="tag ${displayDstTag ? 'tag-dst' : 'tag-std'}">
+                        ${displayDstTag ? '☀️ DST' : '❄️ STD'}
+                    </span>
+                </div>
+                <div class="time-area">
+                    <div class="time-main">${timeString}</div>
+                    <div class="date-sub">${dateString}</div>
+                </div>
+                <div class="card-footer">
+                    <label class="dst-control">
+                        <input type="checkbox" ${item.forceStd ? 'checked' : ''} onchange="toggleDst(${i})">
+                        DST 무시(표준시)
+                    </label>
+                    <button class="btn-del" onclick="removeClock(${i})">삭제</button>
+                </div>
+            `;
+            grid.appendChild(card);
+        });
+    }
+
+    // 상단 로컬 시계 업데이트
+    function updateLocal() {
+        document.getElementById('local-clock').innerText = new Date().toLocaleString('ko-KR', { hour12: false });
+    }
+
+    setInterval(() => { render(); updateLocal(); }, 1000);
+    render();
+    updateLocal();
+</script>
+
+</body>
+</html>
