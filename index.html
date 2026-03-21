@@ -16,6 +16,19 @@
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Pretendard', sans-serif; background: var(--bg-color); color: var(--text-color); display: flex; height: 100vh; overflow: hidden; }
 
+        /* [모바일] 상단 바 추가 - 모바일에서만 보임 */
+        .mobile-header {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 50px;
+            background: var(--sidebar-color);
+            border-bottom: 1px solid #334155;
+            z-index: 100;
+            padding: 0 15px;
+            align-items: center;
+            justify-content: space-between;
+        }
+
         /* 사이드바 설정 */
         nav {
             width: 280px;
@@ -23,22 +36,22 @@
             display: flex;
             flex-direction: column;
             border-right: 1px solid #334155;
+            transition: transform 0.3s ease; /* 이동 애니메이션 */
+            z-index: 1000;
         }
 
         .profile { padding: 30px 20px; border-bottom: 1px solid #334155; text-align: center; }
         .profile h1 { font-size: 1.2rem; margin-bottom: 5px; color: var(--accent-color); }
         .profile p { font-size: 0.85rem; opacity: 0.7; }
 
-        .menu-list { flex: 1; overflow-y: auto; padding: 20px 10px; }
-	.menu-list {
-    	flex: 1; 
-    	overflow-y: auto; 
-    	padding: 20px 10px;
-    
-    	/* 추가되는 핵심 코드 */
-    	display: flex;
-    	flex-direction: column;
-	}
+        .menu-list {
+            flex: 1; 
+            overflow-y: auto; 
+            padding: 20px 10px;
+            display: flex;
+            flex-direction: column;
+        }
+
         .menu-item {
             width: 100%;
             padding: 12px 15px;
@@ -56,20 +69,55 @@
         .menu-item:hover { background: var(--hover-color); }
         .menu-item.active { background: var(--accent-color); color: var(--bg-color); font-weight: bold; }
 
-        /* 메인 콘텐츠 영역 (Iframe) */
+        /* 메인 콘텐츠 영역 */
         main { flex: 1; display: flex; flex-direction: column; background: #fff; position: relative; }
         iframe { width: 100%; height: 100%; border: none; background: #fff; }
 
-        /* 로딩 상태 표시용 */
-        .loading-overlay {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: var(--bg-color); display: none; align-items: center; justify-content: center;
+        /* [모바일 용] 오버레이 배경 */
+        .overlay {
+            display: none;
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5); z-index: 900;
+        }
+
+        /* -------------------------------------------
+           📱 반응형 핵심 코드 (768px 이하)
+        ------------------------------------------- */
+        @media (max-width: 768px) {
+            .mobile-header { display: flex; } /* 모바일 헤더 노출 */
+
+            nav {
+                position: fixed;
+                height: 100%;
+                left: 0;
+                transform: translateX(-100%); /* 왼쪽 밖으로 숨김 */
+            }
+
+            nav.open { transform: translateX(0); } /* 열렸을 때 */
+
+            main { padding-top: 50px; } /* 상단 헤더 공간 확보 */
+
+            .overlay.active { display: block; } /* 메뉴 열리면 배경 어둡게 */
+
+            .menu-item { font-size: 1rem; padding: 15px; } /* 모바일 터치 최적화 */
+        }
+
+        .hamburger {
+            background: none; border: none; color: var(--text-color);
+            font-size: 1.5rem; cursor: pointer;
         }
     </style>
 </head>
 <body>
 
-<nav>
+<div class="mobile-header">
+    <button class="hamburger" onclick="toggleMenu()">☰</button>
+    <div style="font-weight: bold; font-size: 0.9rem; color: var(--accent-color);">HTML Toolset</div>
+    <div></div> </div>
+
+<div class="overlay" id="overlay" onclick="toggleMenu()"></div>
+
+<nav id="sidebar">
     <div class="profile">
         <h1>HTML Tools</h1>
         <p>by HJ</p>
@@ -81,6 +129,7 @@
         <button class="menu-item" onclick="loadPage(this, 'xml2excel.html')">📄 XML to Excel</button>
         <button class="menu-item" onclick="loadPage(this, 'excel_comparison4.html')">🗳️ 엑셀 문서 차이점 비교</button>
         <button class="menu-item" onclick="loadPage(this, 'global_clock2.html')">🕰️ 글로벌 시간 비교</button>
+        
         <button class="menu-item active" id="default-menu" onclick="loadPage(this, 'home.html')" 
                 style="justify-content: center; font-weight: bold; border: 1px dashed var(--accent-color); margin-top: auto; margin-bottom: 10px;">
             🏠 가이드
@@ -93,6 +142,13 @@
 </main>
 
 <script>
+    function toggleMenu() {
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('overlay');
+        sidebar.classList.toggle('open');
+        overlay.classList.toggle('active');
+    }
+
     function loadPage(element, url) {
         // 프레임 소스 변경
         document.getElementById('content-frame').src = url;
@@ -101,6 +157,11 @@
         const buttons = document.querySelectorAll('.menu-item');
         buttons.forEach(btn => btn.classList.remove('active'));
         element.classList.add('active');
+
+        // 모바일인 경우 메뉴 선택 후 자동으로 닫기
+        if (window.innerWidth <= 768) {
+            toggleMenu();
+        }
     }
 </script>
 
