@@ -8,17 +8,20 @@
         :root {
             --panel-bg: #2c2c2c;
             --text-color: #e0e0e0;
+            --accent: #007bff;
         }
+        * { box-sizing: border-box; }
         body {
             margin: 0;
             display: flex;
             height: 100vh;
             background-color: #1a1a1a;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: 'Pretendard', sans-serif;
             color: var(--text-color);
             overflow: hidden;
         }
-        /* 좌측 컨트롤 패널 */
+
+        /* [반응형] 레이아웃 설정 */
         #sidebar {
             width: 320px;
             background-color: var(--panel-bg);
@@ -28,34 +31,10 @@
             gap: 20px;
             box-shadow: 2px 0 10px rgba(0,0,0,0.5);
             z-index: 10;
+            overflow-y: auto; /* 내용 많을 때 스크롤 */
+            flex-shrink: 0;
         }
-        .control-group {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-        label { font-size: 0.9rem; font-weight: bold; }
-        input[type="range"], input[type="color"], input[type="file"] {
-            width: 100%;
-            cursor: pointer;
-        }
-        .btn-group {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 5px;
-        }
-        button {
-            padding: 8px;
-            border: none;
-            border-radius: 4px;
-            background: #444;
-            color: white;
-            cursor: pointer;
-        }
-        button:hover { background: #555; }
-        button.active { background: #007bff; }
 
-        /* 우측 뷰어 영역 */
         #viewer {
             flex: 1;
             overflow-y: auto;
@@ -63,9 +42,8 @@
             flex-wrap: wrap;
             align-content: flex-start;
             padding: 20px;
-            gap: 20px;
-            transition: background 0.3s;
-            /* 기본 격자 배경 (투명도 확인용) */
+            gap: 15px;
+            justify-content: center; /* 모바일에서 중앙 정렬 */
             background-image: linear-gradient(45deg, #ccc 25%, transparent 25%), 
                               linear-gradient(-45deg, #ccc 25%, transparent 25%), 
                               linear-gradient(45deg, transparent 75%, #ccc 75%), 
@@ -74,67 +52,93 @@
             background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
         }
 
-        /* 이미지 카드 스타일 */
+        /* 컨트롤 요소 */
+        .control-group { display: flex; flex-direction: column; gap: 8px; }
+        label { font-size: 0.85rem; font-weight: bold; color: #888; }
+        input[type="range"], input[type="color"], input[type="file"] { width: 100%; cursor: pointer; }
+        
+        .btn-group { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+        button {
+            padding: 10px; border: none; border-radius: 6px;
+            background: #444; color: white; cursor: pointer; font-size: 0.85rem;
+        }
+        button:hover { background: #555; }
+        button.active { background: var(--accent); font-weight: bold; }
+
+        /* 이미지 카드 */
         .img-card {
-            background: rgba(0,0,0,0.2);
+            background: rgba(0,0,0,0.4);
             border-radius: 8px;
             padding: 10px;
             display: flex;
             flex-direction: column;
             align-items: center;
             border: 1px solid #444;
+            backdrop-filter: blur(5px);
         }
         .img-container {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-bottom: 10px;
+            display: flex; align-items: center; justify-content: center;
+            width: 100%; margin-bottom: 8px;
         }
-        img {
-            max-width: 100%;
-            height: auto;
-            object-fit: contain;
-        }
-        .img-info {
-            font-size: 11px;
-            color: #aaa;
-            text-align: center;
-            word-break: break-all;
+        img { max-width: 100%; height: auto; object-fit: contain; }
+        .img-info { font-size: 10px; color: #aaa; text-align: center; word-break: break-all; line-height: 1.4; }
+
+        /* -------------------------------------------
+           📱 모바일 반응형 (768px 이하)
+        ------------------------------------------- */
+        @media (max-width: 768px) {
+            body { flex-direction: column; } /* 세로 배치 */
+            
+            #sidebar {
+                width: 100%;
+                height: auto;
+                max-height: 40vh; /* 사이드바가 화면의 40%만 차지 */
+                box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+                border-right: none;
+                border-bottom: 1px solid #444;
+            }
+
+            #viewer {
+                padding: 10px;
+                background-size: 15px 15px; /* 격자 크기 소폭 축소 */
+            }
+
+            h2 { font-size: 1.2rem; margin: 0 0 10px 0; }
         }
     </style>
 </head>
 <body>
 
 <div id="sidebar">
-    <h2>PNG Checker</h2>
+    <h2 style="margin:0 0 10px 0; color:var(--accent);">PNG Checker</h2>
     
     <div class="control-group">
-        <label>1. 이미지 파일 불러오기</label>
+        <label>1. 이미지 파일 선택 (PNG)</label>
         <input type="file" id="fileInput" accept="image/png" multiple>
     </div>
 
     <div class="control-group">
-        <label>2. 이미지 크기 조절 (<span id="sizeVal">300</span>px)</label>
-        <input type="range" id="sizeRange" min="50" max="800" value="300">
+        <label>2. 이미지 크기: <span id="sizeVal">200</span>px</label>
+        <input type="range" id="sizeRange" min="50" max="500" value="200">
     </div>
 
     <div class="control-group">
-        <label>3. 배경 모드 선택</label>
+        <label>3. 배경 모드</label>
         <div class="btn-group">
-            <button onclick="setBg('grid')" id="btnGrid" class="active">격자(투명)</button>
-            <button onclick="setBg('white')">White</button>
-            <button onclick="setBg('black')">Black</button>
-            <button onclick="setBg('custom')">Custom</button>
+            <button onclick="setBg('grid', this)" class="active">격자</button>
+            <button onclick="setBg('white', this)">White</button>
+            <button onclick="setBg('black', this)">Black</button>
+            <button onclick="setBg('custom', this)">Custom</button>
         </div>
-        <input type="color" id="colorPicker" value="#ff0000" style="display:none">
+        <input type="color" id="colorPicker" value="#ff0000" style="display:none; margin-top:5px;">
     </div>
 
-    <div class="control-group" style="margin-top: auto;">
+    <div class="control-group" style="margin-top: 10px;">
         <button onclick="clearAll()" style="background:#822;">리스트 초기화</button>
     </div>
 </div>
 
-<div id="viewer" id="bgLayer"></div>
+<div id="viewer"></div>
 
 <script>
     const fileInput = document.getElementById('fileInput');
@@ -143,7 +147,6 @@
     const sizeVal = document.getElementById('sizeVal');
     const colorPicker = document.getElementById('colorPicker');
 
-    // 1. 파일 로드 로직
     fileInput.addEventListener('change', (e) => {
         const files = e.target.files;
         for (let file of files) {
@@ -155,7 +158,6 @@
         }
     });
 
-    // 2. 이미지 카드 생성
     function createImageCard(src, name) {
         const card = document.createElement('div');
         card.className = 'img-card';
@@ -179,7 +181,6 @@
         };
     }
 
-    // 3. 사이즈 조절 실시간 반영
     sizeRange.addEventListener('input', (e) => {
         const val = e.target.value;
         sizeVal.innerText = val;
@@ -188,16 +189,14 @@
         });
     });
 
-    // 4. 배경 변경 로직
-    function setBg(type) {
-        // 버튼 활성화 표시
-        document.querySelectorAll('.btn-group button').forEach(btn => btn.classList.remove('active'));
-        event.target.classList.add('active');
+    function setBg(type, btn) {
+        document.querySelectorAll('.btn-group button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
 
         colorPicker.style.display = (type === 'custom') ? 'block' : 'none';
 
         if (type === 'grid') {
-            viewer.style.background = ""; // CSS 기본 격자 배경 적용
+            viewer.style.background = "";
             viewer.style.backgroundColor = "";
         } else if (type === 'white') {
             viewer.style.background = "white";
