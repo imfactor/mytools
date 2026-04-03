@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>초정밀 색상 변환기</title>
+    <style>
+        /* CSS 영역: 디자인과 레이아웃을 담당합니다. */
+        :root {
+            --bg-color: #f4f7f6; /* 페이지 전체 배경색 변수 */
+            --card-bg: #ffffff;  /* 카드 배경색 */
+            --accent-color: #4a90e2; /* 포인트 색상 */
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            display: flex;
+            justify-content: center; /* 가로 중앙 정렬 */
+            align-items: center;     /* 세로 중앙 정렬 */
+            height: 100vh;           /* 화면 전체 높이 사용 */
+            margin: 0;
+        }
+
+        .converter-card {
+            background: var(--card-bg);
+            padding: 30px;
+            border-radius: 20px;     /* 모서리 둥글게 */
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1); /* 부드러운 그림자 */
+            width: 380px;
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            color: #333;
+            margin-bottom: 25px;
+        }
+
+        /* 색상 미리보기 박스 스타일 */
+        .color-preview {
+            width: 100%;
+            height: 120px;
+            border-radius: 12px;
+            margin-bottom: 25px;
+            border: 4px solid #eee; /* 테두리 */
+            transition: background-color 0.2s ease; /* 색상 변경 시 부드러운 효과 */
+        }
+
+        /* 입력 그룹 레이아웃 */
+        .input-group {
+            margin-bottom: 20px;
+            text-align: left;
+        }
+
+        label {
+            display: block;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #666;
+            margin-bottom: 5px;
+        }
+
+        /* 입력창 공통 스타일 */
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e1e1e1;
+            border-radius: 8px;
+            box-sizing: border-box; /* 패딩이 너비에 포함되도록 설정 */
+            font-family: monospace; /* 코드 가독성을 위해 고정폭 글꼴 사용 */
+            font-size: 1rem;
+        }
+
+        /* 컬러 피커(팔레트) 스타일 */
+        .picker-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        input[type="color"] {
+            width: 50px;
+            height: 50px;
+            border: none;
+            cursor: pointer;
+            background: none;
+        }
+
+        #hexDisplay {
+            flex-grow: 1; /* 남은 공간을 다 차지함 */
+            font-weight: bold;
+            color: var(--accent-color);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="converter-card">
+        <h1>Color Master v1.0</h1>
+
+        <div id="colorBox" class="color-preview" style="background-color: #4a90e2;"></div>
+
+        <div class="picker-container">
+            <input type="color" id="mainPicker" value="#4a90e2">
+            <input type="text" id="hexInput" value="#4A90E2" spellcheck="false">
+        </div>
+
+        <div class="input-group">
+            <label>RGB Code</label>
+            <input type="text" id="rgbResult" readonly placeholder="rgb(74, 144, 226)">
+        </div>
+
+        <div class="input-group">
+            <label>HSL Code</label>
+            <input type="text" id="hslResult" readonly placeholder="hsl(212, 72%, 59%)">
+        </div>
+
+        <p style="font-size: 0.75rem; color: #999;">HEX 값을 수정하거나 컬러 피커를 사용하세요.</p>
+    </div>
+
+    <script>
+        /**
+         * JavaScript 영역: 색상 변환 로직과 이벤트 처리를 담당합니다.
+         */
+
+        // HTML 요소 선택하기
+        const colorBox = document.getElementById('colorBox');    // 미리보기 박스
+        const mainPicker = document.getElementById('mainPicker'); // 컬러 피커
+        const hexInput = document.getElementById('hexInput');     // HEX 입력창
+        const rgbResult = document.getElementById('rgbResult');   // RGB 결과창
+        const hslResult = document.getElementById('hslResult');   // HSL 결과창
+
+        /**
+         * 1. HEX 코드를 RGB 객체로 변환하는 함수
+         * @param {string} hex - "#ffffff" 또는 "ffffff"
+         */
+        function hexToRgb(hex) {
+            // # 기호가 있으면 제거
+            hex = hex.replace(/^#/, '');
+            
+            // 16진수 문자열을 정수로 변환 (R, G, B 각각 2자리씩)
+            const bigint = parseInt(hex, 16);
+            const r = (bigint >> 16) & 255; // 비트 연산으로 Red 추출
+            const g = (bigint >> 8) & 255;  // 비트 연산으로 Green 추출
+            const b = bigint & 255;         // 비트 연산으로 Blue 추출
+
+            return { r, g, b };
+        }
+
+        /**
+         * 2. RGB 값을 HSL(Hue, Saturation, Lightness)로 변환하는 함수
+         */
+        function rgbToHsl(r, g, b) {
+            // 0~255 범위를 0~1 범위로 정규화
+            r /= 255; g /= 255; b /= 255;
+
+            const max = Math.max(r, g, b), min = Math.min(r, g, b);
+            let h, s, l = (max + min) / 2;
+
+            if (max === min) {
+                h = s = 0; // 색상이 없는 무채색(회색)인 경우
+            } else {
+                const d = max - min;
+                // 채도(S) 계산
+                s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+                
+                // 색상(H) 계산 (원형 각도)
+                switch (max) {
+                    case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+                    case g: h = (b - r) / d + 2; break;
+                    case b: h = (r - g) / d + 4; break;
+                }
+                h /= 6;
+            }
+
+            // 보기 편하게 정수로 변환하여 문자열 반환
+            return `hsl(${Math.round(h * 360)}, ${Math.round(s * 100)}%, ${Math.round(l * 100)}%)`;
+        }
+
+        /**
+         * 3. 모든 인터페이스를 동시에 업데이트하는 핵심 함수
+         */
+        function updateUI(hexValue) {
+            // HEX값이 유효한지 체크 (#있든 없든 6자리인지 확인)
+            const cleanHex = hexValue.startsWith('#') ? hexValue : '#' + hexValue;
+            
+            // 미리보기 박스 배경색 변경
+            colorBox.style.backgroundColor = cleanHex;
+            
+            // 컬러 피커와 입력창 값 동기화
+            mainPicker.value = cleanHex;
+            if (document.activeElement !== hexInput) { // 사용자가 입력 중이 아닐 때만 텍스트 갱신
+                hexInput.value = cleanHex.toUpperCase();
+            }
+
+            // RGB 및 HSL 변환 실행
+            try {
+                const rgb = hexToRgb(cleanHex);
+                const rgbStr = `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`;
+                
+                rgbResult.value = rgbStr;
+                hslResult.value = rgbToHsl(rgb.r, rgb.g, rgb.b);
+            } catch (e) {
+                // 잘못된 입력 시 무시
+            }
+        }
+
+        // [이벤트 처리] 컬러 피커를 마우스로 조작할 때
+        mainPicker.addEventListener('input', (e) => {
+            updateUI(e.target.value);
+        });
+
+        // [이벤트 처리] HEX 텍스트 입력창에 직접 타이핑할 때
+        hexInput.addEventListener('input', (e) => {
+            const val = e.target.value;
+            // 6자리 색상 코드 형식(예: #ffffff)이 완성되었을 때만 업데이트
+            if (/^#?[0-9A-F]{6}$/i.test(val)) {
+                updateUI(val);
+            }
+        });
+
+        // 페이지가 처음 열릴 때 초기 화면 설정
+        updateUI(mainPicker.value);
+
+    </script>
+</body>
+</html>
